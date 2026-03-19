@@ -1,247 +1,324 @@
-# 🧠 Hakemly – Psikolojik Hakem Uygulaması
+# Hakemly – AI Psychological Referee Application
 
-**Hakemly**, çiftlerin sesli konuşmalarını analiz ederek, metne çeviren, duygu analizi yapan, konuşmaları LLM (ChatGPT) ile yorumlayan ve sonunda kimin daha yapıcı/empatik/haklı olduğuna dair geri bildirim sunan bir **"psikolojik hakem" yapay zeka uygulamasıdır**.
-
----
-
-## 🎯 Amaç
-
-Bu uygulama:
-
-1. **Konuşmaları alır** (mikrofonla veya dosya yükleme ile)
-2. **Her kişiyi ayırır** (örneğin: Ali ne dedi, Ayşe ne dedi)
-3. **Duygu analizini yapar**
-4. **ChatGPT ile argümanları analiz eder**
-5. **Kimin haklı olduğunu belirler**
-6. (Opsiyonel) **Sesli geri bildirim verir**
+**Hakemly** is an AI-powered "psychological referee" application that analyzes couples' voice conversations: it transcribes speech, performs emotion analysis, interprets conversations with LLMs (OpenAI/Anthropic), and provides feedback on who was more constructive, empathetic, or right.
 
 ---
 
-## 🧱 Proje Yapısı
+## Dual Lane Telemetry
 
-```bash
-.
-├── Dockerfile                          # Docker container image configuration for the application
-├── Makefile                            # Make commands for project management (run, test, clean, install)
-├── OPTIMIZATION_GUIDE.md               # Optimization guide and performance improvement documentation
-├── RAG_INTEGRATION_COMPLETE.md         # RAG (Retrieval-Augmented Generation) integration documentation
-├── README.md                           # Main project documentation, setup and usage guide
-├── docker-compose.yml                  # Docker Compose configuration for all services (MongoDB, API)
-├── pyproject.toml                      # Python project configuration and package metadata
-├── requirements.txt                    # Python dependencies (FastAPI, Whisper, transformers, etc.)
-├── tasks.py                            # Invoke task runner - defines run, test commands
-├── scripts/                            # Helper scripts directory
-│   └── populate_knowledge.py           # Script to populate RAG knowledge base with psychological information
-├── src/                                # Main source code directory
-│   └── Hakemly/                        # Main application package
-│       ├── main.py                     # FastAPI application entry point, registers routes, manages MongoDB connection
-│       ├── models/                     # Pydantic models and data schemas
-│       │   ├── __init__.py             # Module initialization
-│       │   ├── message.py              # API models (ChatRequest, ChatResponse, TranscriptCreate, etc.)
-│       │   └── order.py                 # Referee decisions and order models (currently empty)
-│       ├── routes/                     # FastAPI route endpoints
-│       │   ├── __init__.py             # Main router that combines all routers
-│       │   ├── audio.py                # /audio/live WebSocket endpoint - receives live audio stream, processes STT
-│       │   ├── chat.py                 # /chat endpoints - LLM responses, transcript storage, RAG knowledge management
-│       │   └── optimization.py         # /optimization endpoints - performance optimization and batch processing
-│       ├── services/                   # Business logic services
-│       │   ├── __init__.py             # Services module initialization
-│       │   ├── database.py             # MongoDB connection and CRUD operations (transcripts, chats, knowledge)
-│       │   ├── emotion_analysis.py     # Emotion analysis service (currently only function definition)
-│       │   ├── llm.py                  # OpenAI GPT API communication, generates RAG-enhanced responses
-│       │   ├── memory.py               # Conversation history and memory management (currently empty)
-│       │   ├── message_engine.py       # Message processing engine (currently empty)
-│       │   ├── optimization.py         # Batch processing, performance metrics, TTS optimization
-│       │   ├── product_matcher.py      # Product matching service (currently empty)
-│       │   ├── rag_service.py         # RAG service - retrieves relevant knowledge from database, generates embeddings
-│       │   ├── referee_engine.py       # Referee decision engine - analyzes who is right (currently only function definition)
-│       │   ├── speech_to_text.py      # Whisper-based STT service - converts audio files to text
-│       │   └── text_to_speech.py      # Hugging Face TTS service - converts text to speech with caching
-│       ├── static/                     # Static frontend files
-│       │   └── index.html              # Main web interface - live audio recording via WebSocket, chat interface
-│       ├── tests/                      # Test files directory
-│       │   └── test_client.py          # Simple test client for API endpoint testing
-│       └── utils/                      # Helper functions and configuration
-│           ├── __init__.py             # Utils module initialization
-│           ├── config.py               # Reads environment variables (.env), manages settings
-│           ├── logging.py             # Logging configuration and logger factory
-│           └── text_formatter.py      # Formats LLM responses for TTS, extracts objective evaluation section
-└── hakemly.egg-info/                   # Python package metadata (created after installation)
-```
+Dual Lane telemetry, WebSocket payload examples, simulator usage, and microphone acceptance steps are documented in `DUAL_LANE_TELEMETRY.md`.
 
-## 📁 Klasör ve Dosya Açıklamaları
+## Performance Trace
+
+The performance trace standard, `/dev/perf/health`, low-quality gating, and the perf harness are documented in `PERFORMANCE_TRACE.md`.
+
+---
+
+## Purpose
+
+The application:
+
+1. **Captures conversations** (microphone or file upload)
+2. **Separates speakers** (e.g., who said what)
+3. **Analyzes emotions**
+4. **Analyzes arguments with ChatGPT/LLM**
+5. **Determines who was more right / constructive**
+6. **Optionally provides spoken feedback** (TTS)
+
+---
+
+## Folder and File Descriptions
 
 ### `models/`
-Veritabanı ve veri şemaları tutulur.
 
-| Dosya | Görevi |
-|-------|--------|
-| `message.py` | Kim ne dedi, hangi konuşma kime ait |
-| `order.py` | Hakem kararı, analiz sonucu gibi yapılar |
-| `__init__.py` | Modül başlangıcı |
+Data schemas and pipeline models.
+
+| File | Description |
+|------|-------------|
+| `message.py` | Transcript, ChatRequest/Response, StreamingMessageRequest |
+| `pipeline.py` | SignalBundle, AgentInput, RawTurn, ConversationContext |
+| `__init__.py` | Package init |
 
 ---
 
 ### `routes/`
-API endpoint'leri (yani dış dünya bu yolları kullanarak uygulamayla iletişim kurar)
 
-| Dosya | Görevi |
-|-------|--------|
-| `chat.py` | /chat endpointi üzerinden ChatGPT’ye metin gönderimi |
-| `audio.py` | /analyze-audio endpointi üzerinden ses yükleme ve analiz işlemi 🆕 |
+API endpoints (external clients communicate through these paths).
+
+| File | Description |
+|------|-------------|
+| `chat.py` | `/chat/*` – echo, transcripts, history, consent, streaming WebSocket, knowledge, new-architecture analyze |
+| `audio.py` | `/audio/live` – real-time diarization WebSocket |
+| `dev_panel.py` | `/dev/dual_lane/*` – Dual Lane config, telemetry, simulation, trigger_interrupt |
+| `perf.py` | `/dev/perf/health` – performance health summary |
+| `optimization.py` | `/optimization/*` – TTS/chat optimization (currently disabled in `main.py`) |
+
+---
+
+### `routers/`
+
+| File | Description |
+|------|-------------|
+| `chat_website.py` | `/chat_website/*` – website support chatbot (ask, handoff, suggestions, tickets, feedback) |
 
 ---
 
 ### `services/`
-Uygulamanın yapay zekâ ve ses işleme servisleri
 
-| Dosya | Görevi |
-|-------|--------|
-| `llm.py` | ChatGPT API ile konuşma |
-| `memory.py` | Önceki konuşmaları hatırlama |
-| `message_engine.py` | Mesaj formatlama ve kontrol |
-| `audio_processing.py` | Ses → Metin + konuşmacı ayırımı (Whisper + diarization) 🆕 |
-| `emotion_analysis.py` | Duygu analizi (transformer modelleri) 🆕 |
-| `referee_engine.py` | Kim haklı? NLP puanlama + karar 🆕 |
-| `text_to_speech.py` | Sonucu sese çevir (opsiyonel) 🆕 |
+Core AI and audio processing services.
+
+| File | Description |
+|------|-------------|
+| `llm.py` | LLM integration (OpenAI, Anthropic) |
+| `streaming_chat.py` | Real-time message processing, RAG, schema, orchestrator |
+| `orchestrator.py` | Schema detection + rule-based agent selection + decision merger |
+| `intervention_service.py` | Automatic intervention when communication quality drops |
+| `rag_service.py` | RAG retrieval (MongoDB + Elasticsearch) |
+| `elasticsearch_service.py` | Elasticsearch vector/full-text search |
+| `schema_service.py` | Schema therapy detection and analysis |
+| `decision_merger.py` | Merges agent outputs into a single decision |
+| `diarize_final_realtime.py` | Real-time diarization (Whisper + pyannote) |
+| `emotion_analysis.py` | Emotion analysis |
+| `referee_engine.py` | Referee scoring and decisions |
+| `text_to_speech.py` | TTS (Hugging Face VITS) |
+| `speech_to_text.py` | STT integration |
+| `database.py` | MongoDB access |
+| `session_state.py` | Session state management |
+| `consent_gate.py` | KVKK / consent handling |
+| `perf_trace.py` | Performance tracing |
+| `text_quality.py` | Text quality gating |
+
+---
+
+### `services/agents/`
+
+Specialist agents invoked by the orchestrator:
+
+| Agent | Description |
+|-------|-------------|
+| `psychology` | General psychology |
+| `mediation` | Mediation |
+| `emotion_escalation` | Emotion escalation |
+| `legal` | Legal risk |
+| `security` | Security / threat detection |
+| `schema_therapy` | Schema therapy |
+
+---
+
+### `services/dual_lane/`
+
+Dual Lane (Fast Lane + Truth Lane) pipeline:
+
+| File | Description |
+|------|-------------|
+| `fast_lane.py` | Fast audio-based triggers (RMS, overlap) |
+| `first_referee.py` | Immediate referee interrupts |
+| `truth_scheduler.py` | Truth lane job scheduling |
+| `truth_worker.py` | Full STT/diarization for truth |
+| `incident_assembler.py` | Assembles incidents from truth blocks |
+| `input_guard.py` | Blocks legacy chat payloads when truth-first is active |
+| `output_gate.py` | Output gating |
+| `config_store.py` | Config persistence |
+| `dev_control_panel.py` | Dev panel logic |
+| `telemetry_hub.py` | Telemetry events |
 
 ---
 
 ### `utils/`
-Yardımcı araçlar
 
-| Dosya | Görevi |
-|-------|--------|
-| `config.py` | Ortam dosyalarını (.env) okuma |
-| `logging.py` | Uygulama hataları ve günlük kayıtları |
+| File | Description |
+|------|-------------|
+| `config.py` | Environment / `.env` loading |
+| `logging.py` | Logging setup |
+| `flags.py` | Feature flags (DUAL_LANE_ENABLED, etc.) |
+| `text_formatter.py` | Text formatting helpers |
 
 ---
 
 ### `main.py`
-Uygulamanın ana giriş noktası (FastAPI burada başlar)
+
+Application entry point: FastAPI app, router includes, static files, MongoDB/Elasticsearch startup.
 
 ---
 
-## 🔄 Servisler Arası Akış
-Kullanıcı Ses Kaydı Yükler → [routes/audio.py]
-↓
-Ses Metne Dönüşür + Kişiler Ayrılır → [services/audio_processing.py]
-↓
-Duygular Analiz Edilir → [services/emotion_analysis.py]
-↓
-NLP & ChatGPT Yorumlar → [services/llm.py + referee_engine.py]
-↓
-Karar Verilir → ‘Ali daha yapıcıydı…’
-↓
-Sesli Yanıt Üretilir (Opsiyonel) → [text_to_speech.py]
-↓
-Kullanıcıya JSON + Ses Dosyası Döner
+## Service Flow
+
+```
+User sends audio (WebSocket) → [routes/audio.py] /audio/live
+    ↓
+Real-time Diarization → [diarize_final_realtime.py] (Whisper + pyannote)
+    ↓
+Dual Lane (optional): Fast Lane (RMS/overlap) → first_referee interrupt
+    ↓
+Truth Lane: checkpoint blocks → incident_assembler → orchestrator
+    ↓
+Streaming chat: message → [streaming_chat.py]
+    ↓
+Preprocessing → Quality gate → RAG retrieval → Schema analysis
+    ↓
+Orchestrator → Agent selection → Decision merger
+    ↓
+Intervention (if score low) → [intervention_service.py]
+    ↓
+LLM response → TTS (optional) → WebSocket / REST response
+```
 
 ---
 
-## 🧠 Kullanılan Teknolojiler
+## Technologies
 
-| Teknoloji | Açıklama |
-|----------|----------|
-| **FastAPI** | API sunucusu, hızlı ve modern |
-| **OpenAI Whisper** | Ses → Metin çevirisi |
-| **pyannote-audio** | Konuşan kişi ayırımı |
-| **HuggingFace Transformers** | Duygu analizi modelleri |
-| **OpenAI ChatGPT API** | LLM ile konuşma ve analiz |
-| **TTS (gTTS, ElevenLabs, Coqui)** | Sonucu sesli oynatma (opsiyonel) |
-| **Docker** | Uygulamanın taşınabilir şekilde çalışması |
-| **.env** | Gizli API anahtarları, ayarlar |
-| **Logging** | Hata ve analiz takibi |
-
----
-
-## 🧪 Uygulama Akışı
-
-| Aşama | Açıklama |
-|-------|----------|
-| 1 | Kullanıcı mikrofonla ses kaydı gönderir |
-| 2 | Whisper ile metne çevrilir |
-| 3 | pyannote ile konuşmacılar ayrılır (Ali vs. Ayşe) |
-| 4 | Metinler ayrı ayrı duygu analizine gönderilir |
-| 5 | LLM (ChatGPT) ile NLP analiz yapılır |
-| 6 | Yapıcı/empatik gibi puanlamalarla kimin daha haklı olduğuna karar verilir |
-| 7 | (İsteğe bağlı) Bu sonuç sesli olarak da kullanıcıya okunur |
-| 8 | Sonuç ekranda gösterilir, istenirse kaydedilir veya paylaşılır |
+| Technology | Purpose |
+|------------|---------|
+| **FastAPI** | API server |
+| **faster-whisper** | Speech-to-text (ASR) |
+| **pyannote.audio** | Speaker diarization |
+| **HuggingFace Transformers** | Emotion analysis, TTS (VITS) |
+| **OpenAI / Anthropic** | LLM API |
+| **MongoDB (Motor/PyMongo)** | Main database |
+| **Elasticsearch** | Vector/full-text search |
+| **sentence-transformers** | RAG embeddings |
+| **Docker** | Elasticsearch container |
+| **.env** | API keys and configuration |
+| **Logging** | Trace and error tracking |
 
 ---
 
-## 📚 Öğrenilmesi Gerekenler
+## Application Flow
 
-Bu projeyi geliştirmek için şunları bilmen faydalı olacaktır:
-
-### 🔤 Temel:
-- Python programlama
-- FastAPI (REST API geliştirme)
-- JSON yapısı
-- Docker & .env yapısı
-
-### 🤖 AI Bileşenleri:
-- Whisper: Speech-to-Text
-- pyannote-audio: Speaker diarization
-- Transformers: Emotion analysis
-- ChatGPT Prompt Engineering
-- TTS: gTTS, Coqui, ElevenLabs
+| Step | Description |
+|------|-------------|
+| 1 | User sends audio via WebSocket (or uses manual text in test UI) |
+| 2 | Whisper transcribes speech |
+| 3 | pyannote separates speakers (A, B) |
+| 4 | Text is analyzed for emotions and schema signals |
+| 5 | LLM analyzes via RAG + orchestrator |
+| 6 | Agents (psychology, mediation, legal, etc.) provide recommendations |
+| 7 | Decision merger produces final output |
+| 8 | Optional TTS for spoken feedback |
+| 9 | Result shown in UI and/or stored |
 
 ---
 
-## ✅ Özet
+## Prerequisites
 
-**Hakemly**, yapay zeka destekli, ses tabanlı duygu analizine sahip, kimin haklı olduğunu objektif biçimde analiz eden benzersiz bir mobil/masaüstü uygulama altyapısıdır.
-
-Yapılacaklar:
-- [ ] API ve servis yapısını oturt
-- [ ] Speech to text + konuşmacı ayır
-- [ ] Emotion analysis & NLP
-- [ ] ChatGPT ile karar ve öneri üret
-- [ ] TTS ile geri bildirimi sesli ver (isteğe bağlı)
-- [ ] UI/UX prototipi (mobil ya da web)
+- Python 3.12+
+- MongoDB (Atlas or local)
+- Elasticsearch (optional; Docker Compose available)
+- Hugging Face token (for pyannote embeddings)
+- LLM API key (OpenAI or Anthropic)
 
 ---
 
----
+## Running
 
-## 📂 Eklenen Dosyalar
+```bash
+# Create venv and install
+make venv
+make install
 
-- `src/Hakemly/tests/test_client.py` → API uç noktalarını manuel test etmek için.  
-- `tasks.py` → Invoke görevleri (`run`, `test`, `install`, `clean`).  
-- `src/Hakemly/services/text_to_speech.py` → Hugging Face tabanlı TTS servisi.  
-- `src/Hakemly/routes/audio.py` → `/audio/*` endpointlerini yöneten FastAPI router.  
-- `outputs/` → Test sonrası üretilen `.wav` dosyaları burada tutulur.  
----
-
-## ▶️ Çalıştırma
+# Run server (default: http://127.0.0.1:8000)
+make run
+# or
 invoke run
-Servis varsayılan olarak http://127.0.0.1:8000 üzerinde çalışır.
+# or
+python -m uvicorn Hakemly.main:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+```
 
-Swagger dokümantasyonu: http://127.0.0.1:8000/docs
-
-## 🧪 Test Etme
-invoke test
-
-test_client.py aşağıdaki endpointleri test eder:
-
-/chat/echo → LLM’den JSON yanıt döner
-
-/audio/chat_speak → LLM yanıtını ses dosyası (outputs/llm_reply.wav) olarak kaydeder
-
-/audio/test → Basit test sesi (outputs/test.wav) üretir
-
-## 🔌 API Endpointleri
-POST /audio/chat_speak
-Request:
-{
-  "message": "Merhaba!",
-  "session_id": "s1"
-}
-Response:
-Binary wav dosyası → outputs/llm_reply.wav
-
-GET /audio/test
-→ Basit bir test sesi üretir (outputs/test.wav).
+Swagger: `http://127.0.0.1:8000/docs`
 
 ---
+
+## Testing
+
+```bash
+invoke test
+# or
+python -m Hakemly.tests.test_client
+```
+
+`test_client.py` exercises `/chat/echo` and related endpoints. For Dual Lane and performance tests, use `tools/perf_run.py` and the pytest suite in `tests/`.
+
+---
+
+## API Endpoints
+
+### Chat (`/chat`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/chat/consent/status?session_id=` | Consent status |
+| POST | `/chat/consent` | Submit consent |
+| POST | `/chat/transcripts` | Store transcript |
+| POST | `/chat/echo` | LLM response (direct text or transcript reference) |
+| GET | `/chat/history?session_id=&limit=` | Chat history |
+| POST | `/chat/new-architecture/analyze` | Schema + orchestrator analysis |
+| POST | `/chat/knowledge` | Add RAG knowledge |
+| GET | `/chat/knowledge/search?query=&limit=` | Search knowledge |
+| GET | `/chat/knowledge/stats` | Knowledge stats |
+| GET | `/chat/tts?chat_id=` | TTS from chat |
+| WS | `/chat/stream` | Streaming chat WebSocket |
+
+### Audio (`/audio`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| WS | `/audio/live` | Real-time diarization WebSocket |
+
+### TTS (root)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tts?text=` | Text-to-speech streaming |
+
+### Dev Panel (`/dev/dual_lane`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/dev/dual_lane/config` | Dual Lane config snapshot |
+| POST | `/dev/dual_lane/config` | Update config |
+| GET | `/dev/dual_lane/telemetry` | Telemetry snapshot |
+| POST | `/dev/dual_lane/telemetry/simulate` | Simulate telemetry |
+| POST | `/dev/dual_lane/trigger_interrupt` | Trigger interrupt |
+
+### Perf (`/dev/perf`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/dev/perf/health` | Performance health summary |
+
+### Website Chatbot (`/chat_website`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/chat_website/ask` | Support chatbot |
+| POST | `/chat_website/handoff` | Handoff to live support |
+| GET | `/chat_website/suggestions` | Quick suggestions |
+| GET | `/chat_website/admin/tickets` | List support tickets |
+| PATCH | `/chat_website/admin/tickets/{id}` | Update ticket |
+| POST | `/chat_website/feedback` | Submit feedback |
+
+### Optimization (currently disabled)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/optimization/optimized_speak` | Optimized TTS |
+| POST | `/optimization/optimized_chat_speak` | Optimized chat + TTS |
+| POST | `/optimization/batch_optimized_speak` | Batch TTS |
+| GET | `/optimization/performance_stats` | Performance stats |
+| GET | `/optimization/health_check` | Health check |
+| DELETE | `/optimization/clear_metrics` | Clear metrics |
+
+---
+
+## Summary
+
+**Hakemly** is an AI-driven voice analysis platform that:
+
+- Performs real-time speaker diarization and transcription
+- Uses RAG, Elasticsearch, and MongoDB for knowledge and context
+- Implements a Dual Lane (Fast + Truth) pipeline with referee interrupts
+- Routes through an orchestrator and multiple agents (psychology, mediation, legal, security, schema therapy)
+- Provides an intervention service when communication quality drops
+- Offers a website support chatbot and dev/telemetry/perf endpoints
+
+Related docs: `DUAL_LANE_TELEMETRY.md`, `PERFORMANCE_TRACE.md`, `RAG_INTEGRATION_COMPLETE.md`, `OPTIMIZATION_GUIDE.md`.
